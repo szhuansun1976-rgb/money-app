@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { MemoryRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Plus, PieChart, Settings } from 'lucide-react';
-import HomePage from './pages/HomePage';
-import AddEntryPage from './pages/AddEntryPage';
-import StatsPage from './pages/StatsPage';
-import SettingsPage from './pages/SettingsPage';
-import { Entry } from './types';
-import * as storageService from './services/storageService';
+import HomePage from './pages/HomePage.tsx';
+import AddEntryPage from './pages/AddEntryPage.tsx';
+import StatsPage from './pages/StatsPage.tsx';
+import SettingsPage from './pages/SettingsPage.tsx';
+import { Entry } from './types.ts';
+import * as storageService from './services/storageService.ts';
 
 const App: React.FC = () => {
   // Global state lifted up for simplicity in this demo

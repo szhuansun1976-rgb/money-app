@@ -42,7 +42,8 @@
           scrollbar-width: none;  /* Firefox */
       }
     </style>
-  <script type="importmap">
+    <!-- Import Map: Defines where to load libraries from -->
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
@@ -58,11 +59,14 @@
   }
 }
 </script>
+    <!-- Babel Standalone: Compiles JSX/TS in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-700">
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+    <!-- Load the bundled application -->
+    <script type="text/babel" data-presets="react,typescript" src="./index.tsx"></script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>
