@@ -1,0 +1,7 @@
+{
+  "name": "ZenLedger Local",
+  "description": "A minimalist, privacy-focused local bookkeeping application featuring secure offline storage, budget visualization, and rich media notes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
