@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { MemoryRouter, Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -18,16 +17,8 @@ const CATEGORY_STORAGE_KEY = "zenledger_categories";
 const CURRENCY_SYMBOL = "¥";
 
 const COLORS = [
-  '#6366f1', // Indigo
-  '#ec4899', // Pink
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#3b82f6', // Blue
-  '#8b5cf6', // Violet
-  '#ef4444', // Red
-  '#64748b', // Slate
-  '#14b8a6', // Teal
-  '#f97316', // Orange
+  '#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6',
+  '#8b5cf6', '#ef4444', '#64748b', '#14b8a6', '#f97316',
 ];
 
 const DEFAULT_EXPENSE_CATEGORIES = [
@@ -41,9 +32,7 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   { id: '8', name: '其他', type: 'expense', color: COLORS[7] },
 ];
 
-const INCOME_CATEGORIES = [
-  '工资', '兼职', '礼金', '理财', '其他'
-];
+const INCOME_CATEGORIES = ['工资', '兼职', '礼金', '理财', '其他'];
 
 // --- TYPES ---
 
@@ -52,7 +41,7 @@ type EntryType = 'expense' | 'income' | 'note';
 interface MediaAttachment {
   id: string;
   type: 'image' | 'audio' | 'drawing';
-  data: string; // Base64 string
+  data: string;
 }
 
 interface Entry {
@@ -61,8 +50,8 @@ interface Entry {
   amount: number;
   category: string;
   tags: string[];
-  content: string; // Description or Note text
-  date: string; // ISO Date string
+  content: string;
+  date: string;
   media: MediaAttachment[];
 }
 
@@ -73,16 +62,8 @@ interface Category {
   color: string;
 }
 
-interface StatGroup {
-  name: string;
-  value: number;
-  color: string;
-  [key: string]: any;
-}
-
 // --- SERVICES ---
 
-// Helper for ID generation
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -90,7 +71,6 @@ const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
 };
 
-// Entries Service
 const getEntries = () => {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
@@ -101,52 +81,47 @@ const getEntries = () => {
   }
 };
 
-const getEntry = (id) => {
+const getEntry = (id: string) => {
   const entries = getEntries();
-  return entries.find(e => e.id === id);
+  return entries.find((e: Entry) => e.id === id);
 };
 
-const saveEntry = (entry) => {
+const saveEntry = (entry: Entry) => {
   try {
     const entries = getEntries();
-    const existingIndex = entries.findIndex(e => e.id === entry.id);
+    const existingIndex = entries.findIndex((e: Entry) => e.id === entry.id);
     let newEntries;
-    
     if (existingIndex > -1) {
         entries[existingIndex] = entry;
         newEntries = entries;
     } else {
         newEntries = [entry, ...entries];
     }
-
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
     window.dispatchEvent(new Event('zenledger-update'));
   } catch (e) {
-    console.error("Failed to save entry", e);
     alert("Failed to save entry. Storage might be full.");
   }
 };
 
-const updateEntry = (updatedEntry) => {
+const updateEntry = (updatedEntry: Entry) => {
   try {
     const entries = getEntries();
-    const index = entries.findIndex(e => e.id === updatedEntry.id);
-    
+    const index = entries.findIndex((e: Entry) => e.id === updatedEntry.id);
     if (index !== -1) {
       entries[index] = updatedEntry;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
       window.dispatchEvent(new Event('zenledger-update'));
     }
   } catch (e) {
-    console.error("Failed to update entry", e);
     alert("保存失败");
   }
 };
 
-const deleteEntry = (id) => {
+const deleteEntry = (id: string) => {
   if (!id) return;
   const entries = getEntries();
-  const index = entries.findIndex(e => e.id === id);
+  const index = entries.findIndex((e: Entry) => e.id === id);
   if (index !== -1) {
     entries.splice(index, 1);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -154,7 +129,6 @@ const deleteEntry = (id) => {
   }
 };
 
-// Categories Service
 const getCategories = () => {
   try {
     const data = localStorage.getItem(CATEGORY_STORAGE_KEY);
@@ -166,22 +140,21 @@ const getCategories = () => {
   }
 };
 
-const saveCategory = (category) => {
+const saveCategory = (category: Category) => {
   const categories = getCategories();
   const newCategories = [...categories, category];
   localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(newCategories));
   window.dispatchEvent(new Event('zenledger-categories-update'));
 };
 
-const deleteCategory = (id) => {
+const deleteCategory = (id: string) => {
   const categories = getCategories();
   if (categories.length <= 1) return;
-  const newCategories = categories.filter(c => c.id !== id);
+  const newCategories = categories.filter((c: Category) => c.id !== id);
   localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(newCategories));
   window.dispatchEvent(new Event('zenledger-categories-update'));
 };
 
-// Backup Service
 const exportData = () => {
   const data = {
     entries: getEntries(),
@@ -193,7 +166,7 @@ const exportData = () => {
   return JSON.stringify(data, null, 2);
 };
 
-const importData = (jsonString) => {
+const importData = (jsonString: string) => {
   try {
     const data = JSON.parse(jsonString);
     if (!data || !Array.isArray(data.entries) || !Array.isArray(data.categories)) {
@@ -206,16 +179,14 @@ const importData = (jsonString) => {
     window.dispatchEvent(new Event('zenledger-categories-update'));
     return true;
   } catch (e) {
-    console.error("Import failed", e);
     return false;
   }
 };
 
 // --- COMPONENTS ---
 
-// DrawingCanvas Component
-const DrawingCanvas = ({ onSave }) => {
-  const canvasRef = useRef(null);
+const DrawingCanvas = ({ onSave }: { onSave: (data: string) => void }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasContent, setHasContent] = useState(false);
 
@@ -233,7 +204,23 @@ const DrawingCanvas = ({ onSave }) => {
     }
   }, []);
 
-  const startDrawing = (e) => {
+  const getPos = (e: any, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  };
+
+  const startDrawing = (e: any) => {
     setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -244,7 +231,7 @@ const DrawingCanvas = ({ onSave }) => {
     ctx.moveTo(x, y);
   };
 
-  const draw = (e) => {
+  const draw = (e: any) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -261,22 +248,6 @@ const DrawingCanvas = ({ onSave }) => {
         onSave(canvasRef.current.toDataURL('image/png'));
     }
     setIsDrawing(false);
-  };
-
-  const getPos = (e, canvas) => {
-    const rect = canvas.getBoundingClientRect();
-    let clientX, clientY;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
   };
 
   const clear = () => {
@@ -320,27 +291,26 @@ const DrawingCanvas = ({ onSave }) => {
 
 // --- PAGES ---
 
-// AddEntryPage
 const AddEntryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [type, setType] = useState('expense');
+  const [type, setType] = useState<EntryType>('expense');
   const [amount, setAmount] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
-  const [media, setMedia] = useState([]);
+  const [media, setMedia] = useState<MediaAttachment[]>([]);
   const [entryDate, setEntryDate] = useState(new Date().toISOString());
-  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [showDrawing, setShowDrawing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEntry, setIsLoadingEntry] = useState(!!id);
 
-  const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const activeStreamRef = useRef(null);
+  const mediaRecorderRef = useRef<any>(null);
+  const chunksRef = useRef<any[]>([]);
+  const activeStreamRef = useRef<any>(null);
 
   useEffect(() => {
     const loadData = () => {
@@ -402,7 +372,7 @@ const AddEntryPage = () => {
 
     setIsSaving(true);
     try {
-      const entryData = {
+      const entryData: Entry = {
         id: id || generateId(),
         type,
         amount: type === 'note' ? 0 : numericAmount,
@@ -413,14 +383,10 @@ const AddEntryPage = () => {
         media
       };
 
-      if (id) {
-        updateEntry(entryData);
-      } else {
-        saveEntry(entryData);
-      }
+      if (id) updateEntry(entryData);
+      else saveEntry(entryData);
       navigate('/');
     } catch (err) {
-      console.error('Save failed', err);
       alert('保存失败，请重试');
     } finally {
       setIsSaving(false);
@@ -435,25 +401,18 @@ const AddEntryPage = () => {
     }
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = (e: any) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files);
-    fileArray.forEach((file: any) => {
+    Array.from(files).forEach((file: any) => {
       if (!file.type.startsWith('image/')) return;
       const reader = new FileReader();
       reader.onloadend = () => {
-        const dataUrl = reader.result;
-        setMedia(prev => [...prev, {
-          id: generateId(),
-          type: 'image',
-          data: dataUrl
-        }]);
+        setMedia(prev => [...prev, { id: generateId(), type: 'image', data: reader.result as string }]);
       };
       reader.readAsDataURL(file);
     });
-
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -468,14 +427,7 @@ const AddEntryPage = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       activeStreamRef.current = stream;
 
-      let mimeType = '';
-      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-        mimeType = 'audio/ogg;codecs=opus';
-      }
-
-      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -484,49 +436,32 @@ const AddEntryPage = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        try {
-          const parts = chunksRef.current || [];
-          const blobType = parts.length > 0 && parts[0] ? parts[0].type : 'audio/webm';
-          const blob = new Blob(parts, { type: blobType });
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setMedia(prev => [...prev, {
-              id: generateId(),
-              type: 'audio',
-              data: reader.result
-            }]);
-          };
-          reader.readAsDataURL(blob);
-        } catch (err) {
-          console.error('Recording processing failed', err);
-        } finally {
-          if (activeStreamRef.current) {
-            activeStreamRef.current.getTracks().forEach(t => t.stop());
-            activeStreamRef.current = null;
-          }
-          mediaRecorderRef.current = null;
-          chunksRef.current = [];
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setMedia(prev => [...prev, { id: generateId(), type: 'audio', data: reader.result as string }]);
+        };
+        reader.readAsDataURL(blob);
+        
+        if (activeStreamRef.current) {
+          activeStreamRef.current.getTracks().forEach((t: any) => t.stop());
+          activeStreamRef.current = null;
         }
       };
 
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error('Microphone access denied', err);
       alert('无法访问麦克风，请检查权限。');
       setIsRecording(false);
     }
   };
 
-  const removeMedia = (id) => {
+  const removeMedia = (id: string) => {
     setMedia(prev => prev.filter(m => m.id !== id));
   };
 
-  const typeLabels = {
-      expense: '支出',
-      income: '收入',
-      note: '笔记'
-  };
+  const typeLabels: any = { expense: '支出', income: '收入', note: '笔记' };
 
   if (isLoadingEntry) {
       return (
@@ -556,7 +491,7 @@ const AddEntryPage = () => {
           {['expense', 'income', 'note'].map((t) => (
             <button
               key={t}
-              onClick={() => setType(t)}
+              onClick={() => setType(t as EntryType)}
               className={`flex-1 py-3 text-sm font-medium rounded-lg capitalize transition-all ${type === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               {typeLabels[t]}
@@ -646,9 +581,7 @@ const AddEntryPage = () => {
           {showDrawing && (
             <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                 <DrawingCanvas onSave={(data) => {
-                    if (data) {
-                        setMedia(prev => [...prev, { id: generateId(), type: 'drawing', data }]);
-                    }
+                    if (data) setMedia(prev => [...prev, { id: generateId(), type: 'drawing', data }]);
                     setShowDrawing(false);
                 }} />
             </div>
@@ -694,85 +627,7 @@ const AddEntryPage = () => {
   );
 };
 
-// HomePage
-const HomePage = ({ entries }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-
-  const filteredEntries = useMemo(() => {
-    return entries
-      .filter(entry => {
-        const matchesSearch = entry.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              entry.category.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesType = filterType === 'all' || entry.type === filterType;
-        return matchesSearch && matchesType;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [entries, searchTerm, filterType]);
-
-  const totalExpense = useMemo(() => 
-    entries.filter(e => e.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0), 
-  [entries]);
-
-  const filterLabels = {
-      all: '全部',
-      expense: '支出',
-      income: '收入',
-      note: '笔记'
-  };
-
-  return (
-    <div className="min-h-full bg-slate-50">
-      <div 
-        className="bg-white px-6 pb-4 rounded-b-3xl shadow-sm sticky top-0 z-20 transition-all"
-        style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}
-      >
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">总支出</h2>
-            <h1 className="text-3xl font-bold text-slate-900">{CURRENCY_SYMBOL}{totalExpense.toLocaleString()}</h1>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">ZS</div>
-        </div>
-
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="搜索交易和笔记..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-100 border-none rounded-xl py-3 pl-10 pr-4 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
-          />
-        </div>
-        
-        <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar">
-            {['all', 'expense', 'income', 'note'].map(f => (
-                <button
-                    key={f}
-                    onClick={() => setFilterType(f)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize whitespace-nowrap transition-colors ${
-                        filterType === f ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                >
-                    {filterLabels[f]}
-                </button>
-            ))}
-        </div>
-      </div>
-
-      <div className="px-4 py-6 space-y-4">
-        {filteredEntries.length === 0 ? (
-          <div className="text-center py-20 text-slate-400"><p className="text-sm">暂无记录。</p></div>
-        ) : (
-          filteredEntries.map(entry => <EntryCard key={entry.id} entry={entry} />)
-        )}
-      </div>
-    </div>
-  );
-};
-
-const EntryCard = ({ entry }) => {
+const EntryCard = ({ entry }: { entry: Entry }) => {
   const navigate = useNavigate();
   const isExpense = entry.type === 'expense';
   const isIncome = entry.type === 'income';
@@ -809,13 +664,83 @@ const EntryCard = ({ entry }) => {
   );
 };
 
-// StatsPage
-const StatsPage = ({ entries }) => {
+const HomePage = ({ entries }: { entries: Entry[] }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<EntryType | 'all'>('all');
+
+  const filteredEntries = useMemo(() => {
+    return entries
+      .filter(entry => {
+        const matchesSearch = entry.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              entry.category.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'all' || entry.type === filterType;
+        return matchesSearch && matchesType;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [entries, searchTerm, filterType]);
+
+  const totalExpense = useMemo(() => 
+    entries.filter(e => e.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0), 
+  [entries]);
+
+  const filterLabels: any = { all: '全部', expense: '支出', income: '收入', note: '笔记' };
+
+  return (
+    <div className="min-h-full bg-slate-50">
+      <div 
+        className="bg-white px-6 pb-4 rounded-b-3xl shadow-sm sticky top-0 z-20 transition-all"
+        style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">总支出</h2>
+            <h1 className="text-3xl font-bold text-slate-900">{CURRENCY_SYMBOL}{totalExpense.toLocaleString()}</h1>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">ZS</div>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
+            placeholder="搜索交易和笔记..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-100 border-none rounded-xl py-3 pl-10 pr-4 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
+        </div>
+        
+        <div className="flex gap-2 mt-4 overflow-x-auto no-scrollbar">
+            {['all', 'expense', 'income', 'note'].map(f => (
+                <button
+                    key={f}
+                    onClick={() => setFilterType(f as any)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize whitespace-nowrap transition-colors ${
+                        filterType === f ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                >
+                    {filterLabels[f]}
+                </button>
+            ))}
+        </div>
+      </div>
+
+      <div className="px-4 py-6 space-y-4">
+        {filteredEntries.length === 0 ? (
+          <div className="text-center py-20 text-slate-400"><p className="text-sm">暂无记录。</p></div>
+        ) : (
+          filteredEntries.map(entry => <EntryCard key={entry.id} entry={entry} />)
+        )}
+      </div>
+    </div>
+  );
+};
+
+const StatsPage = ({ entries }: { entries: Entry[] }) => {
   const expenseEntries = entries.filter(e => e.type === 'expense');
   
   const dataByCategory = useMemo(() => {
     const map = new Map();
-    const STANDARD_COLORS = COLORS;
     expenseEntries.forEach(e => {
       map.set(e.category, (map.get(e.category) || 0) + e.amount);
     });
@@ -823,9 +748,9 @@ const StatsPage = ({ entries }) => {
       .map(([name, value], index) => ({
         name,
         value,
-        color: STANDARD_COLORS[index % STANDARD_COLORS.length]
+        color: COLORS[index % COLORS.length]
       }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a: any, b: any) => b.value - a.value);
   }, [expenseEntries]);
 
   return (
@@ -840,16 +765,16 @@ const StatsPage = ({ entries }) => {
                 <ResponsiveContainer width="100%" height="100%">
                     <RePieChart>
                         <Pie data={dataByCategory} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                            {dataByCategory.map((entry, index) => (
+                            {dataByCategory.map((entry: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                             ))}
                         </Pie>
-                        <ReTooltip formatter={(value) => [`${CURRENCY_SYMBOL}${value}`, '金额']} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                        <ReTooltip formatter={(value: any) => [`${CURRENCY_SYMBOL}${value}`, '金额']} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                     </RePieChart>
                 </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-2">
-                {dataByCategory.map(item => (
+                {dataByCategory.map((item: any) => (
                     <div key={item.name} className="flex justify-between items-center text-sm">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
@@ -867,13 +792,12 @@ const StatsPage = ({ entries }) => {
   );
 };
 
-// SettingsPage
 const SettingsPage = () => {
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadCategories(); }, []);
 
@@ -885,7 +809,7 @@ const SettingsPage = () => {
     const newCat = {
       id: generateId(),
       name: newCategoryName.trim(),
-      type: 'expense',
+      type: 'expense' as const,
       color: randomColor
     };
     saveCategory(newCat);
@@ -894,7 +818,7 @@ const SettingsPage = () => {
     loadCategories();
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = (id: string) => {
     if (confirm('确定要删除这个分类吗？')) {
         deleteCategory(id);
         loadCategories();
@@ -918,12 +842,12 @@ const SettingsPage = () => {
     }
   };
 
-  const handleImportBackup = (e) => {
+  const handleImportBackup = (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
-        const content = event.target?.result;
+        const content = event.target?.result as string;
         if (confirm('⚠️ 警告：导入备份将【完全覆盖】当前的记账记录和分类设置。\n\n建议在覆盖前先导出当前数据。\n\n确定要继续恢复吗？')) {
              const success = importData(content);
              if (success) {
@@ -1019,9 +943,9 @@ const SettingsPage = () => {
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
   
-  const navItemClass = (path) => 
+  const navItemClass = (path: string) => 
     `flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
       isActive(path) ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
     }`;
@@ -1044,8 +968,6 @@ const Navigation = () => {
            <button 
              onClick={() => navigate('/add')} 
              className="absolute -top-8 bg-indigo-600 rounded-full p-4 shadow-xl shadow-indigo-200 transform transition-transform hover:scale-105 active:scale-95 ring-4 ring-white flex items-center justify-center z-50 cursor-pointer pointer-events-auto"
-             aria-label="记一笔"
-             type="button"
            >
              <Plus size={32} color="white" strokeWidth={3} className="pointer-events-none" />
            </button>
@@ -1058,15 +980,14 @@ const Navigation = () => {
       </div>
     </nav>
   );
-}
+};
 
 const App = () => {
-  const [entries, setEntries] = useState([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
 
   useEffect(() => {
     const loadData = () => {
-      const data = getEntries();
-      setEntries(data);
+      setEntries(getEntries());
     };
     loadData();
     window.addEventListener('zenledger-update', loadData);
@@ -1094,9 +1015,5 @@ const App = () => {
 const rootElement = document.getElementById('root');
 if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+  root.render(<App />);
 }
