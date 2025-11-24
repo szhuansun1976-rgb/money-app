@@ -1,19 +1,22 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { MemoryRouter, Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { 
   Home, Plus, PieChart, Settings, Trash2, 
   Mic, Image as ImageIcon, PenTool, Check, Loader2, X,
-  ArrowLeft, Tag, Info, Share, Download, Upload, ShieldCheck, FileJson, Search 
+  ArrowLeft, Tag, Info, Share, Download, Upload, ShieldCheck, FileJson, Search,
+  ChevronLeft, ChevronRight, Save
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isSameMonth, subMonths, addMonths } from 'date-fns';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from 'recharts';
 
-// --- CONSTANTS ---
+// --- 1. CONSTANTS ---
 
 const APP_NAME = "ZenLedger";
 const STORAGE_KEY = "zenledger_data";
 const CATEGORY_STORAGE_KEY = "zenledger_categories";
+const DRAFT_KEY = "zenledger_draft_entry"; // New key for draft
 const CURRENCY_SYMBOL = "¥";
 
 const COLORS = [
@@ -34,7 +37,7 @@ const DEFAULT_EXPENSE_CATEGORIES = [
 
 const INCOME_CATEGORIES = ['工资', '兼职', '礼金', '理财', '其他'];
 
-// --- TYPES ---
+// --- 2. TYPES ---
 
 type EntryType = 'expense' | 'income' | 'note';
 
@@ -62,7 +65,7 @@ interface Category {
   color: string;
 }
 
-// --- SERVICES ---
+// --- 3. SERVICES (Storage Logic) ---
 
 const generateId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -183,7 +186,7 @@ const importData = (jsonString: string) => {
   }
 };
 
-// --- COMPONENTS ---
+// --- 4. COMPONENTS ---
 
 const DrawingCanvas = ({ onSave }: { onSave: (data: string) => void }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -289,7 +292,7 @@ const DrawingCanvas = ({ onSave }: { onSave: (data: string) => void }) => {
   );
 };
 
-// --- PAGES ---
+// --- 5. PAGES ---
 
 const AddEntryPage = () => {
   const { id } = useParams();
@@ -307,11 +310,13 @@ const AddEntryPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEntry, setIsLoadingEntry] = useState(!!id);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const mediaRecorderRef = useRef<any>(null);
   const chunksRef = useRef<any[]>([]);
   const activeStreamRef = useRef<any>(null);
 
+  // --- Initialization ---
   useEffect(() => {
     const loadData = () => {
       try {
@@ -319,6 +324,7 @@ const AddEntryPage = () => {
         setExpenseCategories(cats);
         
         if (id) {
+          // EDIT MODE: Load entry
           const existingEntry = getEntry(id);
           if (existingEntry) {
             setType(existingEntry.type);
@@ -330,6 +336,21 @@ const AddEntryPage = () => {
           } else {
             navigate('/');
           }
+        } else {
+          // NEW ENTRY MODE: Check for draft
+          const draft = localStorage.getItem(DRAFT_KEY);
+          if (draft) {
+            try {
+              const d = JSON.parse(draft);
+              if (d.type) setType(d.type);
+              if (d.amount) setAmount(d.amount);
+              if (d.content) setContent(d.content);
+              if (d.category) setCategory(d.category);
+              if (d.media) setMedia(d.media);
+            } catch(e) {
+              console.error("Failed to load draft");
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load data', err);
@@ -340,23 +361,48 @@ const AddEntryPage = () => {
     loadData();
   }, [id, navigate]);
 
+  // --- Default Category Logic ---
   useEffect(() => {
     if (isLoadingEntry) return;
-    if (id && category) return;
+    // Only set default if category is empty
+    if (category) return;
 
     if (type === 'expense') {
       if (expenseCategories.length > 0) {
-        const isValid = expenseCategories.some(c => c.name === category);
-        if (!isValid) setCategory(expenseCategories[0].name);
+        setCategory(expenseCategories[0].name);
       } else {
         setCategory('其他');
       }
     } else if (type === 'income') {
-        if (!INCOME_CATEGORIES.includes(category)) setCategory(INCOME_CATEGORIES[0]);
+        setCategory(INCOME_CATEGORIES[0]);
     } else {
       setCategory('笔记');
     }
-  }, [type, expenseCategories, isLoadingEntry]);
+  }, [type, expenseCategories, isLoadingEntry, category]);
+
+  // --- Auto Save Draft Logic ---
+  useEffect(() => {
+    if (id) return; // Don't draft existing entries
+    if (isLoadingEntry) return;
+
+    const timer = setTimeout(() => {
+      // Only save if there is some data
+      if (amount || content || media.length > 0) {
+        const draft = { type, amount, content, category, media };
+        try {
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            setDraftSaved(true);
+            setTimeout(() => setDraftSaved(false), 2000);
+        } catch (e) {
+            // Ignore quota errors
+        }
+      }
+    }, 1500); // Save after 1.5s of inactivity
+
+    return () => clearTimeout(timer);
+  }, [type, amount, content, category, media, id, isLoadingEntry]);
+
+  // --- Actions ---
 
   const handleSave = () => {
     if (isSaving) return;
@@ -384,7 +430,10 @@ const AddEntryPage = () => {
       };
 
       if (id) updateEntry(entryData);
-      else saveEntry(entryData);
+      else {
+          saveEntry(entryData);
+          localStorage.removeItem(DRAFT_KEY); // Clear draft on success
+      }
       navigate('/');
     } catch (err) {
       alert('保存失败，请重试');
@@ -477,7 +526,10 @@ const AddEntryPage = () => {
         className="px-6 pb-6 flex justify-between items-center bg-white sticky top-0 z-20 transition-all"
         style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top) + 10px)' }}
       >
-        <h1 className="text-2xl font-bold text-slate-800">{id ? '编辑' : '记一笔'}</h1>
+        <div className="flex items-center gap-2">
+             <h1 className="text-2xl font-bold text-slate-800">{id ? '编辑' : '记一笔'}</h1>
+             {!id && draftSaved && <span className="text-[10px] text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1"><Check size={10}/> 已自动保存</span>}
+        </div>
         <div className="flex items-center gap-2">
             {id && (
                 <button onClick={handleDelete} className="text-slate-400 hover:text-red-500 p-2 bg-slate-50 rounded-full transition-colors"><Trash2 size={20} /></button>
@@ -679,9 +731,15 @@ const HomePage = ({ entries }: { entries: Entry[] }) => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [entries, searchTerm, filterType]);
 
-  const totalExpense = useMemo(() => 
-    entries.filter(e => e.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0), 
-  [entries]);
+  const summary = useMemo(() => {
+      if (filterType === 'income') {
+          const total = entries.filter(e => e.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+          return { label: '总收入', amount: total, color: 'text-emerald-600' };
+      }
+      // Default to showing expenses for 'all', 'expense', 'note'
+      const total = entries.filter(e => e.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+      return { label: '总支出', amount: total, color: 'text-slate-900' };
+  }, [entries, filterType]);
 
   const filterLabels: any = { all: '全部', expense: '支出', income: '收入', note: '笔记' };
 
@@ -693,8 +751,8 @@ const HomePage = ({ entries }: { entries: Entry[] }) => {
       >
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">总支出</h2>
-            <h1 className="text-3xl font-bold text-slate-900">{CURRENCY_SYMBOL}{totalExpense.toLocaleString()}</h1>
+            <h2 className="text-slate-500 text-xs font-semibold uppercase tracking-wider">{summary.label}</h2>
+            <h1 className={`text-3xl font-bold ${summary.color}`}>{CURRENCY_SYMBOL}{summary.amount.toLocaleString()}</h1>
           </div>
           <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">ZS</div>
         </div>
@@ -737,11 +795,28 @@ const HomePage = ({ entries }: { entries: Entry[] }) => {
 };
 
 const StatsPage = ({ entries }: { entries: Entry[] }) => {
-  const expenseEntries = entries.filter(e => e.type === 'expense');
-  
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
+
+  // Filter entries by Month and Type
+  const filteredEntries = useMemo(() => {
+    return entries.filter(e => {
+        const entryDate = parseISO(e.date);
+        const matchesMonth = isSameMonth(entryDate, currentMonth);
+        const matchesType = e.type === activeTab;
+        return matchesMonth && matchesType;
+    });
+  }, [entries, currentMonth, activeTab]);
+
+  // Calculate Total for the View
+  const totalAmount = useMemo(() => {
+      return filteredEntries.reduce((sum, e) => sum + e.amount, 0);
+  }, [filteredEntries]);
+
+  // Group by Category
   const dataByCategory = useMemo(() => {
     const map = new Map();
-    expenseEntries.forEach(e => {
+    filteredEntries.forEach(e => {
       map.set(e.category, (map.get(e.category) || 0) + e.amount);
     });
     return Array.from(map.entries())
@@ -751,43 +826,105 @@ const StatsPage = ({ entries }: { entries: Entry[] }) => {
         color: COLORS[index % COLORS.length]
       }))
       .sort((a: any, b: any) => b.value - a.value);
-  }, [expenseEntries]);
+  }, [filteredEntries]);
+
+  const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <div className="min-h-full bg-slate-50 p-6 pb-24 space-y-6">
-      <div className="sticky top-0 bg-slate-50 z-10 py-2" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
-        <h1 className="text-2xl font-bold text-slate-800">统计分析</h1>
-      </div>
-      {dataByCategory.length > 0 ? (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">分类支出</h3>
-            <div className="h-[200px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    <RePieChart>
-                        <Pie data={dataByCategory} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                            {dataByCategory.map((entry: any, index: number) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                            ))}
-                        </Pie>
-                        <ReTooltip formatter={(value: any) => [`${CURRENCY_SYMBOL}${value}`, '金额']} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    </RePieChart>
-                </ResponsiveContainer>
+    <div className="min-h-full bg-slate-50 pb-24">
+      {/* Month Navigation Header */}
+      <div 
+        className="bg-white sticky top-0 z-10 border-b border-slate-100"
+        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
+      >
+        <div className="flex items-center justify-between px-4 py-3">
+            <button onClick={prevMonth} className="p-2 text-slate-500 hover:text-indigo-600 rounded-full hover:bg-slate-100">
+                <ChevronLeft size={24} />
+            </button>
+            <div className="text-center">
+                <h2 className="text-lg font-bold text-slate-800">{format(currentMonth, 'yyyy年 MM月')}</h2>
             </div>
-            <div className="mt-4 space-y-2">
-                {dataByCategory.map((item: any) => (
-                    <div key={item.name} className="flex justify-between items-center text-sm">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                            <span className="text-slate-600">{item.name}</span>
-                        </div>
-                        <span className="font-medium text-slate-900">{CURRENCY_SYMBOL}{item.value.toLocaleString()}</span>
-                    </div>
-                ))}
+            <button onClick={nextMonth} className="p-2 text-slate-500 hover:text-indigo-600 rounded-full hover:bg-slate-100">
+                <ChevronRight size={24} />
+            </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-6 pb-2">
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button 
+                    onClick={() => setActiveTab('expense')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'expense' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                >
+                    支出统计
+                </button>
+                <button 
+                    onClick={() => setActiveTab('income')}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}
+                >
+                    收入统计
+                </button>
             </div>
         </div>
-      ) : (
-        <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100 border-dashed"><p>记一笔支出后查看统计。</p></div>
-      )}
+
+        {/* Total Display */}
+        <div className="px-6 py-4 text-center">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                {activeTab === 'expense' ? '本月总支出' : '本月总收入'}
+            </p>
+            <h1 className={`text-3xl font-bold mt-1 ${activeTab === 'expense' ? 'text-slate-900' : 'text-emerald-600'}`}>
+                {CURRENCY_SYMBOL}{totalAmount.toLocaleString()}
+            </h1>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-6">
+        {dataByCategory.length > 0 ? (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">分类占比</h3>
+                <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <RePieChart>
+                            <Pie 
+                                data={dataByCategory} 
+                                innerRadius={60} 
+                                outerRadius={80} 
+                                paddingAngle={5} 
+                                dataKey="value"
+                            >
+                                {dataByCategory.map((entry: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                ))}
+                            </Pie>
+                            <ReTooltip 
+                                formatter={(value: any) => [`${CURRENCY_SYMBOL}${value}`, '金额']} 
+                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                            />
+                        </RePieChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="mt-4 space-y-2">
+                    {dataByCategory.map((item: any) => (
+                        <div key={item.name} className="flex justify-between items-center text-sm border-b border-slate-50 pb-2 last:border-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                <span className="text-slate-700 font-medium">{item.name}</span>
+                                <span className="text-xs text-slate-400">
+                                    {((item.value / totalAmount) * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                            <span className="font-semibold text-slate-900">{CURRENCY_SYMBOL}{item.value.toLocaleString()}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        ) : (
+            <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-100 border-dashed">
+                <p>本月暂无{activeTab === 'expense' ? '支出' : '收入'}记录</p>
+            </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -938,7 +1075,7 @@ const SettingsPage = () => {
   );
 };
 
-// --- APP & NAVIGATION ---
+// --- 6. APP & NAVIGATION ---
 
 const Navigation = () => {
   const location = useLocation();
